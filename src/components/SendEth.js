@@ -3,9 +3,9 @@ import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { ethers } from 'ethers';
 
 const SendEth = () => {
-  const { address, isConnected } = useAccount(); // Información de la cuenta conectada
-  const publicClient = usePublicClient(); // Proveedor público gestionado por wagmi
-  const { data: walletClient } = useWalletClient(); // Cliente de la billetera gestionado por wagmi
+  const { isConnected } = useAccount();
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
 
   const [to, setTo] = useState('');
   const [amount, setAmount] = useState('');
@@ -19,36 +19,54 @@ const SendEth = () => {
       return;
     }
 
-    // Validar la dirección del destinatario
+    // Validate recipient address
     if (!ethers.isAddress(to)) {
       setStatus('Invalid recipient address.');
       return;
     }
 
-    // Validar la cantidad de ETH
-    if (isNaN(amount) || parseFloat(amount) <= 0) {
+    // Validate amount
+    if (!amount || isNaN(amount) || parseFloat(amount) <= 0) {
       setStatus('Invalid amount. Please enter a positive number.');
       return;
     }
 
+    // Debugging: Log the amount
+    console.log('Amount entered:', amount);
+
     try {
-      // Convertir la cantidad a wei
-      const value = ethers.parseEther(amount);
+      // Convert amount to wei
+      const value = ethers.parseEther(amount.toString());
+      console.log('Value in wei:', value); // Debugging: Log the converted value
 
-      // Crear un signer desde el cliente de la billetera
-      const signer = walletClient.getSigner();
+      // Log walletClient for debugging
+      console.log('Wallet Client:', walletClient);
 
-      // Enviar la transacción usando el signer
+      // Ensure walletClient is initialized
+      if (!walletClient) {
+        setStatus('Wallet client is not initialized. Please reconnect your wallet.');
+        return;
+      }
+
+      // Get the signer from the walletClient
+      const provider = new ethers.BrowserProvider(walletClient);
+      const signer = await provider.getSigner();
+      console.log('Signer:', signer);
+
+      // Send the transaction using ethers
       const tx = await signer.sendTransaction({
         to,
         value,
       });
 
+      // Debugging: Log the transaction response
+      console.log('Transaction response:', tx);
+
       setStatus('Transaction sent! Waiting for confirmation...');
-      await tx.wait(); // Esperar a que se confirme la transacción
+      await tx.wait(); // Wait for the transaction to be mined
       setStatus('Transaction confirmed!');
     } catch (error) {
-      console.error(error);
+      console.error('Error details:', error);
       setStatus('Error sending transaction: ' + error.message);
     }
   };
