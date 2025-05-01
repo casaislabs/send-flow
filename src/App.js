@@ -5,23 +5,28 @@ import SendEth from './components/SendEth';
 
 const App = () => {
   return (
-    <div className="App h-screen bg-gray-50">
+    <div className="App min-h-screen bg-gray-100 text-gray-800 font-sans flex flex-col">
       {/* Barra superior */}
-      <div className="relative">
+      <div className="relative flex justify-between items-center p-4 bg-gradient-to-r from-blue-500 to-purple-500 shadow-lg">
+        {/* Logotipo o título */}
+        <div className="flex items-center text-white font-bold text-lg">
+          <span>Send ETH App</span>
+        </div>
+
         {/* Esquina superior izquierda: Balance */}
-        <WalletInfo />
+        <div className="flex items-center">
+          <WalletInfo />
+        </div>
 
         {/* Esquina superior derecha: Botón de conexión */}
-        <div className="absolute top-4 right-4">
+        <div className="flex items-center">
           <WalletConnector />
         </div>
       </div>
 
       {/* Contenido principal */}
-      <div className="flex justify-center items-center h-full">
-        <div className="w-full max-w-lg">
-          <SendEth />
-        </div>
+      <div className="flex-grow flex justify-center items-start bg-gray-100">
+        <SendEth />
       </div>
     </div>
   );
