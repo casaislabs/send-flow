@@ -10,7 +10,12 @@ const WalletInfo = () => {
   }
 
   return (
-    <div className="absolute top-4 left-4 p-2 bg-gray-100 rounded-md shadow-sm">
+    <div
+      className="absolute top-4 left-4 p-2 bg-gray-100 rounded-md shadow-sm"
+      style={{
+        zIndex: 50, // Asegura que el balance esté por encima de otros elementos
+      }}
+    >
       <p className="text-sm text-gray-700">
         <strong>Balance:</strong> {balance?.formatted || '0'} ETH
       </p>

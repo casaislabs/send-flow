@@ -1,149 +1,216 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useAccount, useWalletClient } from 'wagmi';
 import { ethers } from 'ethers';
-import axios from 'axios';
+import { BalancesContext } from '../context/BalancesContext';
 
 const SendEth = () => {
   const { address, isConnected } = useAccount();
   const { data: walletClient } = useWalletClient(); // Para operaciones de escritura
+  const { nativeBalance, tokenBalances, loading } = useContext(BalancesContext);
 
   const [to, setTo] = useState('');
   const [amount, setAmount] = useState('');
+  const [selectedToken, setSelectedToken] = useState('NATIVE'); // Moneda nativa por defecto
   const [status, setStatus] = useState('');
-  const [transactions, setTransactions] = useState([]); // Estado para el historial
-  const [visibleTransactions, setVisibleTransactions] = useState(5); // Número de transacciones visibles
+  const [nativeCurrency, setNativeCurrency] = useState(''); // Nombre de la moneda nativa
+  const [chainId, setChainId] = useState(null); // ID de la red conectada
 
-  // Mapeo de cadenas y sus APIs
-  const chainApis = {
-    1: { name: 'Ethereum', apiUrl: 'https://api.etherscan.io/api', apiKey: process.env.REACT_APP_ETHERSCAN_API_KEY },
-    56: { name: 'BSC', apiUrl: 'https://api.bscscan.com/api', apiKey: process.env.REACT_APP_BSCSCAN_API_KEY },
-    137: { name: 'Polygon', apiUrl: 'https://api.polygonscan.com/api', apiKey: process.env.REACT_APP_POLYGONSCAN_API_KEY },
-    42161: { name: 'Arbitrum', apiUrl: 'https://api.arbiscan.io/api', apiKey: process.env.REACT_APP_ARBISCAN_API_KEY },
-    10: { name: 'Optimism', apiUrl: 'https://api-optimistic.etherscan.io/api', apiKey: process.env.REACT_APP_OPTIMISM_API_KEY },
-    11155111: { name: 'Sepolia', apiUrl: 'https://api-sepolia.etherscan.io/api', apiKey: process.env.REACT_APP_SEPOLIA_API_KEY },
-    97: { name: 'BSC Testnet', apiUrl: 'https://api-testnet.bscscan.com/api', apiKey: process.env.REACT_APP_BSCSCAN_TESTNET_API_KEY },
+  // Estados para manejo de tarifas de gas
+  const [gasOption, setGasOption] = useState('medium');
+  const [customGasPrice, setCustomGasPrice] = useState('');
+  const [gasEstimates, setGasEstimates] = useState({ low: '', medium: '', fast: '' });
+  const [estimatedGasLimit, setEstimatedGasLimit] = useState(null); // Gas limit estimado
+
+  // Mapeo de cadenas y sus monedas nativas
+  const nativeCurrencies = {
+    1: 'ETH',
+    56: 'BNB',
+    137: 'MATIC',
+    42161: 'ETH',
+    10: 'ETH',
+    11155111: 'ETH',
+    97: 'BNB',
   };
 
-  // Fetch transactions from the appropriate API
   useEffect(() => {
-    const fetchTransactions = async () => {
-      if (!address || !walletClient) return;
+    if (!walletClient) return;
+    (async () => {
+      const cid = walletClient.chain.id;
+      setChainId(cid);
+      setNativeCurrency(nativeCurrencies[cid] || 'NATIVE');
+    })();
+  }, [walletClient]);
 
+  useEffect(() => {
+    if (!walletClient) return;
+    (async () => {
       try {
-        const chainId = walletClient.chain.id; // Obtén el chainId actual
-        const chainApi = chainApis[chainId];
+        const provider = new ethers.BrowserProvider(walletClient);
+        const feeData = await provider.getFeeData();
 
-        if (!chainApi) {
-          console.error(`No API configured for chainId: ${chainId}`);
-          return;
-        }
+        const baseGas = feeData.gasPrice;
+        const maxPriorityFeePerGas =
+          typeof feeData.maxPriorityFeePerGas === 'bigint'
+            ? feeData.maxPriorityFeePerGas
+            : 0n;
 
-        const { apiUrl, apiKey } = chainApi;
-        const url = `${apiUrl}?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&sort=desc&apikey=${apiKey}`;
-
-        const response = await axios.get(url);
-        const { result } = response.data;
-
-        if (result && Array.isArray(result)) {
-          const formattedHistory = result.map((tx) => ({
-            hash: tx.hash,
-            to: tx.to,
-            value: ethers.formatEther(tx.value),
-            chainId,
-          }));
-          setTransactions(formattedHistory);
+        if (baseGas) {
+          setGasEstimates({
+            low: ethers.formatUnits((baseGas * 90n) / 100n, 'gwei'),
+            medium: ethers.formatUnits(baseGas, 'gwei'),
+            fast: ethers.formatUnits((baseGas * 110n) / 100n + maxPriorityFeePerGas, 'gwei'),
+          });
+        } else {
+          setGasEstimates({ low: 'N/A', medium: 'N/A', fast: 'N/A' });
         }
       } catch (error) {
-        console.error('Error fetching transactions:', error);
+        console.error('Error fetching gas estimates:', error);
       }
-    };
+    })();
+  }, [walletClient]);
 
-    fetchTransactions();
-  }, [address, walletClient]);
+  useEffect(() => {
+    if (
+      !walletClient ||
+      !ethers.isAddress(to) ||
+      !amount ||
+      isNaN(amount) ||
+      parseFloat(amount) <= 0
+    ) {
+      setEstimatedGasLimit('N/A');
+      return;
+    }
+
+    (async () => {
+      try {
+        const provider = new ethers.BrowserProvider(walletClient);
+        const signer = await provider.getSigner();
+        let txParams;
+
+        if (selectedToken === 'NATIVE') {
+          txParams = { to, value: ethers.parseEther(amount.toString()) };
+          const gasLimit = await signer.estimateGas(txParams);
+          setEstimatedGasLimit(gasLimit.toString());
+          return;
+        } else {
+          const token = tokenBalances.find((t) => t.symbol === selectedToken);
+          if (!token) {
+            setEstimatedGasLimit('N/A');
+            return;
+          }
+          const erc20Abi = [
+            'function transfer(address to, uint256 amount) public returns (bool)',
+          ];
+          const tokenContract = new ethers.Contract(token.address, erc20Abi, signer);
+          const tokenAmount = ethers.parseUnits(
+            amount.toString(),
+            parseInt(token.decimals || 18, 10)
+          );
+          const gasLimit = await tokenContract.estimateGas.transfer(to, tokenAmount);
+          setEstimatedGasLimit(gasLimit.toString());
+          return;
+        }
+      } catch (error) {
+        console.error('Error estimating gas limit:', error);
+        setEstimatedGasLimit('N/A');
+      }
+    })();
+  }, [walletClient, to, amount, selectedToken, tokenBalances]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (!isConnected) {
       setStatus('Please connect your wallet first.');
       return;
     }
-
-    // Validate recipient address
     if (!ethers.isAddress(to)) {
       setStatus('Invalid recipient address.');
       return;
     }
-
-    // Validate amount
     if (!amount || isNaN(amount) || parseFloat(amount) <= 0) {
       setStatus('Invalid amount. Please enter a positive number.');
       return;
     }
-
     try {
-      // Convert amount to wei
-      const value = ethers.parseEther(amount.toString());
-
-      // Ensure walletClient is initialized
       if (!walletClient) {
         setStatus('Wallet client is not initialized. Please reconnect your wallet.');
         return;
       }
-
-      // Crear un proveedor de ethers usando el cliente de wagmi
       const provider = new ethers.BrowserProvider(walletClient);
       const signer = await provider.getSigner();
+      const gasPrice =
+        gasOption === 'custom'
+          ? ethers.parseUnits(customGasPrice, 'gwei')
+          : ethers.parseUnits(gasEstimates[gasOption], 'gwei');
 
-      // Enviar la transacción
-      const tx = await signer.sendTransaction({
-        to,
-        value,
-      });
-
-      setStatus('Transaction sent! Waiting for confirmation...');
-      await tx.wait(); // Espera la confirmación
-      setStatus('Transaction confirmed!');
-
-      // Add the transaction to the history
-      setTransactions((prev) => [
-        ...prev,
-        {
-          hash: tx.hash,
-          to,
-          value: ethers.formatEther(value),
-          chainId: walletClient.chain.id, // Usa el chainId actual
-        },
-      ]);
+      if (selectedToken === 'NATIVE') {
+        const value = ethers.parseEther(amount.toString());
+        const tx = await signer.sendTransaction({ to, value, gasPrice });
+        setStatus('Transaction sent! Waiting for confirmation...');
+        await tx.wait();
+        setStatus('Transaction confirmed!');
+      } else {
+        const token = tokenBalances.find((t) => t.symbol === selectedToken);
+        if (!token) {
+          setStatus('Selected token not found in your balances.');
+          return;
+        }
+        const erc20Abi = ['function transfer(address to, uint256 amount) public returns (bool)'];
+        const tokenContract = new ethers.Contract(token.address, erc20Abi, signer);
+        const tokenAmount = ethers.parseUnits(
+          amount.toString(),
+          parseInt(token.decimals || 18, 10)
+        );
+        const tx = await tokenContract.transfer(to, tokenAmount, { gasPrice });
+        setStatus('Transaction sent! Waiting for confirmation...');
+        await tx.wait();
+        setStatus('Transaction confirmed!');
+      }
     } catch (error) {
       console.error('Error details:', error);
       setStatus('Error sending transaction: ' + error.message);
     }
   };
 
-  // Helper function to truncate strings (e.g., hash or address)
-  const truncate = (str) => `${str.slice(0, 6)}...${str.slice(-4)}`;
-
-  // Helper function to get the explorer URL based on the chain ID
-  const getExplorerUrl = (chainId, hash) => {
-    const explorers = {
-      1: `https://etherscan.io/tx/${hash}`, // Ethereum Mainnet
-      56: `https://bscscan.com/tx/${hash}`, // Binance Smart Chain
-      137: `https://polygonscan.com/tx/${hash}`, // Polygon
-      42161: `https://arbiscan.io/tx/${hash}`, // Arbitrum
-      10: `https://optimistic.etherscan.io/tx/${hash}`, // Optimism
-      11155111: `https://sepolia.etherscan.io/tx/${hash}`, // Sepolia Testnet
-      97: `https://testnet.bscscan.com/tx/${hash}`, // BSC Testnet
-    };
-    return explorers[chainId] || '#'; // Default to '#' if chain ID is not recognized
-  };
-
   return (
-    <div className="min-h-screen flex flex-col items-center justify-start bg-gray-100">
-      {/* Formulario de envío */}
+    <div className="min-h-[50vh] flex flex-col items-center justify-start bg-gray-100">
       <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-3xl mx-auto mt-12 border-4 border-gradient-to-r from-blue-500 to-purple-500">
-        <h2 className="text-3xl font-bold mb-6 text-gray-800 text-center">Send ETH</h2>
+        <h2 className="text-3xl font-bold mb-6 text-gray-800 text-center">
+          Send {nativeCurrency || 'Native Currency'} or Tokens
+        </h2>
+
+        {loading ? (
+          <p className="text-center text-gray-500">Loading balances...</p>
+        ) : selectedToken === 'NATIVE' && nativeBalance ? (
+          <p className="text-center text-gray-700 mb-4">
+            <strong>Balance:</strong> {nativeBalance} {nativeCurrency}
+          </p>
+        ) : (
+          <p className="text-center text-gray-700 mb-4">
+            <strong>Balance:</strong>{' '}
+            {tokenBalances.find((t) => t.symbol === selectedToken)?.balance || '0'}{' '}
+            {selectedToken}
+          </p>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="relative">
+            <select
+              value={selectedToken}
+              onChange={(e) => setSelectedToken(e.target.value)}
+              className="w-full p-4 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="NATIVE">
+                {nativeCurrency || 'Native Currency'} (Native) - {nativeBalance || '0'}
+              </option>
+              {tokenBalances.map((token, idx) => (
+                <option key={idx} value={token.symbol}>
+                  {token.name} ({token.symbol}) - {token.balance}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="relative">
             <input
               type="text"
@@ -154,64 +221,67 @@ const SendEth = () => {
               required
             />
           </div>
+
           <div className="relative">
             <input
               type="number"
-              placeholder="Amount in ETH"
+              placeholder="Amount"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               className="w-full p-4 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
+
+          {(!to || !ethers.isAddress(to) || !amount || isNaN(amount) || parseFloat(amount) <= 0) ? (
+            <p className="text-center text-red-500">
+              Please enter a valid address and amount.
+            </p>
+          ) : (
+            <div className="relative">
+              <label className="block text-gray-700 mb-2">Gas Price</label>
+              <select
+                value={gasOption}
+                onChange={(e) => setGasOption(e.target.value)}
+                className="w-full p-4 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="low">
+                  Low ({gasEstimates.low || 'Calculating...'} Gwei, Gas Limit:{' '}
+                  {estimatedGasLimit === null ? 'Calculating...' : estimatedGasLimit})
+                </option>
+                <option value="medium">
+                  Medium ({gasEstimates.medium || 'Calculating...'} Gwei, Gas Limit:{' '}
+                  {estimatedGasLimit === null ? 'Calculating...' : estimatedGasLimit})
+                </option>
+                <option value="fast">
+                  Fast ({gasEstimates.fast || 'Calculating...'} Gwei, Gas Limit:{' '}
+                  {estimatedGasLimit === null ? 'Calculating...' : estimatedGasLimit})
+                </option>
+                <option value="custom">Custom</option>
+              </select>
+              {gasOption === 'custom' && (
+                <div className="relative mt-2">
+                  <input
+                    type="number"
+                    placeholder="Custom Gas Price (Gwei)"
+                    value={customGasPrice}
+                    onChange={(e) => setCustomGasPrice(e.target.value)}
+                    className="w-full p-4 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           <button
             type="submit"
             className="w-full p-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-md hover:opacity-90 transition-opacity text-lg"
           >
-            Send ETH
+            Send
           </button>
         </form>
         {status && <p className="mt-4 text-gray-700 text-center">{status}</p>}
       </div>
-
-      {/* Historial de transacciones */}
-      {transactions.length > 0 && (
-        <div className="bg-white p-6 rounded-lg shadow-md w-full max-w-5xl mx-auto mt-12">
-          <h3 className="text-2xl font-bold mb-6 text-gray-800 text-center">Transaction History</h3>
-          <ul className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {transactions.slice(0, visibleTransactions).map((tx, index) => (
-              <li
-                key={index}
-                className="p-4 border rounded-md bg-gray-50 shadow-sm flex flex-col space-y-2 hover:shadow-lg transition-shadow"
-              >
-                <p className="text-sm text-gray-700">
-                  <strong>To:</strong> {truncate(tx.to)}
-                </p>
-                <p className="text-sm text-gray-700">
-                  <strong>Value:</strong> {tx.value} ETH
-                </p>
-                <p className="text-sm text-gray-500">
-                  <strong>Date:</strong> {new Date().toLocaleString()}
-                </p>
-                <button
-                  onClick={() => window.open(getExplorerUrl(tx.chainId, tx.hash), '_blank')}
-                  className="p-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-md hover:opacity-90 transition-opacity text-sm"
-                >
-                  View on Explorer
-                </button>
-              </li>
-            ))}
-          </ul>
-          {visibleTransactions < transactions.length && (
-            <button
-              onClick={() => setVisibleTransactions((prev) => prev + 5)}
-              className="mt-6 w-full p-4 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400"
-            >
-              Show More
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 };
