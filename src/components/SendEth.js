@@ -20,7 +20,8 @@ const SendEth = () => {
   const [gasOption, setGasOption] = useState('medium');
   const [customGasPrice, setCustomGasPrice] = useState('');
   const [gasEstimates, setGasEstimates] = useState({ low: '', medium: '', fast: '' });
-  const [estimatedGasLimit, setEstimatedGasLimit] = useState(null); 
+  const [estimatedGasLimit, setEstimatedGasLimit] = useState(null);
+  const [customGasLimit, setCustomGasLimit] = useState('');
 
   const nativeCurrencies = {
     1: 'ETH',
@@ -117,6 +118,13 @@ const SendEth = () => {
     })();
   }, [walletClient, to, amount, selectedToken, tokenBalances]);
 
+  // Sincroniza el customGasLimit con el estimado por defecto
+  useEffect(() => {
+    if (estimatedGasLimit && estimatedGasLimit !== 'N/A') {
+      setCustomGasLimit(estimatedGasLimit);
+    }
+  }, [estimatedGasLimit]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!isConnected) {
@@ -132,6 +140,19 @@ const SendEth = () => {
     if (!amount || isNaN(amount) || parseFloat(amount) <= 0) {
       setStatus('Invalid amount. Please enter a positive number.');
       toast.warning('Invalid amount. Please enter a positive number.');
+      return;
+    }
+    // Validación de gas limit
+    if (
+      estimatedGasLimit &&
+      estimatedGasLimit !== 'N/A' &&
+      customGasLimit &&
+      ethers.toBigInt(customGasLimit) < ethers.toBigInt(estimatedGasLimit)
+    ) {
+      setStatus('Gas limit too low. Please increase it.');
+      toast.error('Gas limit too low. Please increase it.', {
+        description: `Minimum required: ${estimatedGasLimit}`,
+      });
       return;
     }
     try {
@@ -153,7 +174,7 @@ const SendEth = () => {
           to,
           value,
           gasPrice,
-          gasLimit: estimatedGasLimit ? BigInt(estimatedGasLimit) : undefined, // <--- Añade esto
+          gasLimit: customGasLimit ? ethers.toBigInt(customGasLimit) : (estimatedGasLimit && estimatedGasLimit !== 'N/A' ? ethers.toBigInt(estimatedGasLimit) : undefined),
         });
         setStatus('Transaction sent! Waiting for confirmation...');
         toast.message('Transaction sent! Waiting for confirmation...', {
@@ -300,6 +321,19 @@ const SendEth = () => {
                   />
                 </div>
               )}
+              <div className="relative mt-2">
+                <input
+                  type="number"
+                  min={estimatedGasLimit && estimatedGasLimit !== 'N/A' ? estimatedGasLimit : undefined}
+                  placeholder="Gas Limit"
+                  value={customGasLimit}
+                  onChange={(e) => setCustomGasLimit(e.target.value)}
+                  className="w-full p-4 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Estimated: {estimatedGasLimit === null ? 'Calculating...' : estimatedGasLimit}
+                </p>
+              </div>
             </div>
           )}
 

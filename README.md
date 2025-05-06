@@ -8,12 +8,30 @@ A modern, multi-chain decentralized app (DApp) to **send ETH and tokens**, **tra
 
 - 🔗 **Wallet Connection** – Connect MetaMask and other wallets using RainbowKit & wagmi.
 - 💰 **Send ETH / Tokens** – Choose gas presets or set your own Gwei manually.
+- ⚡ **Custom Gas Limit** – Set a custom gas limit for advanced control over transaction execution.
 - 👛 **Live Balances** – View your ETH and token holdings across major EVM chains.
 - 📜 **Transaction History** – With filtering, search, and CSV export.
 - 🔔 **Modern Notifications** – Real-time feedback via [Sonner](https://sonner.emilkowal.ski/).
 - 🌌 **Animated Background** – Interactive particles when no wallet is connected.
 - 📱 **Responsive UI** – Built with TailwindCSS for mobile and desktop support.
 - 🧪 **Test Coverage** – Core components tested with Jest + React Testing Library.
+
+---
+
+## ⛽ Understanding Gas, Gas Price, and Gas Limit
+
+- **Gas** is the unit that measures the computational effort required to execute operations on the Ethereum network.
+- **Gas Price** is the amount you are willing to pay per unit of gas, usually denominated in Gwei. Higher gas price = faster confirmation.
+- **Gas Limit** is the maximum amount of gas you allow for a transaction. For simple ETH transfers, the minimum is 21,000, but interacting with contracts or sending tokens requires more.
+
+### How Custom Gas Limit Works in SendFlow
+
+- By default, the app estimates the required gas limit for your transaction.
+- You can manually increase the gas limit if you want to ensure your transaction does not run out of gas (useful for complex contract interactions).
+- If you set the gas limit below the estimated minimum, the app will prevent the transaction and show an error.
+- For simple ETH transfers, only 21,000 gas is used, even if you set a higher limit (the unused gas is refunded).
+
+> **Tip:** For most users, the estimated gas limit is sufficient. Customizing is for advanced users or special contract interactions.
 
 ---
 
@@ -119,8 +137,6 @@ You can get these keys from:
 - [Sepolia Faucet](https://cloud.google.com/application/web3/faucet/ethereum/sepolia)
 - [BSCScan (Mainnet & Testnet)](https://bscscan.com/myapikey)
 
-
-
 ---
 
 ## 🔧 Running Tests
@@ -144,7 +160,7 @@ The app features a modern and user-friendly design built using **TailwindCSS**. 
 
 ```bash
 src/
-├── components/          # Core UI components (e.g., Wallet connection, Token Balances, Send ETH)
+├── components/          # Core UI components (e.g., Wallet connecti, Token Balances, Send ETH)
 ├── context/             # Global state management (e.g., Wallet, Balances)
 ├── config/              # Wallet connection configuration (e.g., wagmi, RainbowKit)
 ├── tests/               # Jest tests
