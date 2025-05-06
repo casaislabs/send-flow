@@ -249,7 +249,7 @@ const TransactionHistoryContainer = () => {
                     {tx.value ? ethers.formatEther(tx.value) : '0'} {nativeCurrency || 'NATIVE'}
                   </span>
                   <span className="text-xs text-gray-600">
-                    Gas: {tx.gasUsed || 'N/A'}
+                  Gas Used: {tx.gasUsed || 'N/A'} / Gas Limit: {tx.gas || 'N/A'}
                   </span>
                   {explorerBaseUrl && (
                     <a
