@@ -149,7 +149,12 @@ const SendEth = () => {
 
       if (selectedToken === 'NATIVE') {
         const value = ethers.parseEther(amount.toString());
-        const tx = await signer.sendTransaction({ to, value, gasPrice });
+        const tx = await signer.sendTransaction({
+          to,
+          value,
+          gasPrice,
+          gasLimit: estimatedGasLimit ? BigInt(estimatedGasLimit) : undefined, // <--- Añade esto
+        });
         setStatus('Transaction sent! Waiting for confirmation...');
         toast.message('Transaction sent! Waiting for confirmation...', {
           description: `Hash: ${tx.hash}`,
