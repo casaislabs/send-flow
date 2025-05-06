@@ -64,7 +64,7 @@ const App = () => {
       <div className="App min-h-screen bg-gray-100 text-gray-800 font-sans flex flex-col">
         <div className="flex items-center justify-between px-10 py-6 bg-gradient-to-r from-blue-600 to-purple-600 shadow-xl rounded-b-3xl mb-4 z-20">
           <div className="flex items-center space-x-4">
-            <span className="text-white font-extrabold text-3xl tracking-wider drop-shadow-lg">Send ETH App</span>
+            <span className="text-white font-extrabold text-3xl tracking-wider drop-shadow-lg">Send Flow Dapp</span>
           </div>
           <div>
             <WalletConnector />
