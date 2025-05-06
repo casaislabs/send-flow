@@ -3,6 +3,7 @@ import { Alchemy, Network } from 'alchemy-sdk';
 import { useAccount, usePublicClient } from 'wagmi';
 import axios from 'axios';
 import { ethers } from 'ethers';
+import { toast } from 'sonner';
 
 const TokenBalances = ({ onTokensFetched }) => {
   const { address, isConnected } = useAccount();
@@ -31,7 +32,7 @@ const TokenBalances = ({ onTokensFetched }) => {
       try {
         const chainId = await publicClient.getChainId();
 
-        // Si la red es soportada por Ankr
+        // If the network is supported by Ankr
         if (ankrChains[chainId]) {
           const chain = ankrChains[chainId];
           const response = await axios.post('https://rpc.ankr.com/multichain', {
@@ -47,7 +48,7 @@ const TokenBalances = ({ onTokensFetched }) => {
           const result = response.data.result;
           if (result && result.assets) {
             const tokenDetails = result.assets
-              .filter((asset) => parseFloat(asset.balance) > 0) // Filtrar balances > 0
+              .filter((asset) => parseFloat(asset.balance) > 0)
               .map((asset) => ({
                 name: asset.tokenName,
                 symbol: asset.tokenSymbol,
@@ -56,20 +57,24 @@ const TokenBalances = ({ onTokensFetched }) => {
               }));
 
             setTokens(tokenDetails);
-            onTokensFetched(tokenDetails); // Pasar los tokens al componente padre
+            onTokensFetched(tokenDetails);
+            toast.success('Tokens loaded successfully.', {
+              description: `Found ${tokenDetails.length} tokens.`,
+            });
           } else {
             setTokens([]);
             onTokensFetched([]);
+            toast.warning('No tokens found on this network.');
           }
           return;
         }
 
-        // Si la red es soportada por Alchemy
         const alchemyNetwork = alchemyNetworks[chainId];
         if (!alchemyNetwork) {
-          console.error(`La red con chainId ${chainId} no está soportada.`);
+          console.error(`Network with chainId ${chainId} is not supported.`);
           setTokens([]);
           onTokensFetched([]);
+          toast.error('Network not supported for token lookup.');
           return;
         }
 
@@ -100,13 +105,19 @@ const TokenBalances = ({ onTokensFetched }) => {
           })
         );
 
-        const filteredTokens = tokenDetails.filter((token) => token !== null); // Filtrar tokens válidos
+        const filteredTokens = tokenDetails.filter((token) => token !== null);
         setTokens(filteredTokens);
-        onTokensFetched(filteredTokens); // Pasar los tokens al componente padre
+        onTokensFetched(filteredTokens);
+        toast.success('Tokens loaded successfully.', {
+          description: `Found ${filteredTokens.length} tokens.`,
+        });
       } catch (error) {
         console.error('Error fetching token balances:', error);
         setTokens([]);
         onTokensFetched([]);
+        toast.error('Error loading tokens.', {
+          description: error.message,
+        });
       } finally {
         setLoading(false);
       }
@@ -126,7 +137,6 @@ const TokenBalances = ({ onTokensFetched }) => {
         <p className="text-center text-gray-500">Loading...</p>
       ) : (
         <>
-          {/* Mostrar los balances de tokens */}
           {tokens.length > 0 ? (
             <ul className="space-y-4">
               {tokens.map((token, index) => (

@@ -2,26 +2,26 @@ import React, { useState, useEffect, useContext } from 'react';
 import { useAccount, useWalletClient } from 'wagmi';
 import { ethers } from 'ethers';
 import { BalancesContext } from '../context/BalancesContext';
+import { toast } from 'sonner';
 
 const SendEth = () => {
   const { address, isConnected } = useAccount();
-  const { data: walletClient } = useWalletClient(); // Para operaciones de escritura
+  const { data: walletClient } = useWalletClient();
   const { nativeBalance, tokenBalances, loading } = useContext(BalancesContext);
 
   const [to, setTo] = useState('');
   const [amount, setAmount] = useState('');
-  const [selectedToken, setSelectedToken] = useState('NATIVE'); // Moneda nativa por defecto
+  const [selectedToken, setSelectedToken] = useState('NATIVE'); 
   const [status, setStatus] = useState('');
-  const [nativeCurrency, setNativeCurrency] = useState(''); // Nombre de la moneda nativa
-  const [chainId, setChainId] = useState(null); // ID de la red conectada
+  const [nativeCurrency, setNativeCurrency] = useState(''); 
+  const [chainId, setChainId] = useState(null); 
 
-  // Estados para manejo de tarifas de gas
+
   const [gasOption, setGasOption] = useState('medium');
   const [customGasPrice, setCustomGasPrice] = useState('');
   const [gasEstimates, setGasEstimates] = useState({ low: '', medium: '', fast: '' });
-  const [estimatedGasLimit, setEstimatedGasLimit] = useState(null); // Gas limit estimado
+  const [estimatedGasLimit, setEstimatedGasLimit] = useState(null); 
 
-  // Mapeo de cadenas y sus monedas nativas
   const nativeCurrencies = {
     1: 'ETH',
     56: 'BNB',
@@ -121,19 +121,23 @@ const SendEth = () => {
     e.preventDefault();
     if (!isConnected) {
       setStatus('Please connect your wallet first.');
+      toast.error('Please connect your wallet first.');
       return;
     }
     if (!ethers.isAddress(to)) {
       setStatus('Invalid recipient address.');
+      toast.error('Invalid recipient address.');
       return;
     }
     if (!amount || isNaN(amount) || parseFloat(amount) <= 0) {
       setStatus('Invalid amount. Please enter a positive number.');
+      toast.warning('Invalid amount. Please enter a positive number.');
       return;
     }
     try {
       if (!walletClient) {
         setStatus('Wallet client is not initialized. Please reconnect your wallet.');
+        toast.error('Wallet client is not initialized. Please reconnect your wallet.');
         return;
       }
       const provider = new ethers.BrowserProvider(walletClient);
@@ -147,12 +151,17 @@ const SendEth = () => {
         const value = ethers.parseEther(amount.toString());
         const tx = await signer.sendTransaction({ to, value, gasPrice });
         setStatus('Transaction sent! Waiting for confirmation...');
+        toast.message('Transaction sent! Waiting for confirmation...', {
+          description: `Hash: ${tx.hash}`,
+        });
         await tx.wait();
         setStatus('Transaction confirmed!');
+        toast.success('Transaction confirmed!');
       } else {
         const token = tokenBalances.find((t) => t.symbol === selectedToken);
         if (!token) {
           setStatus('Selected token not found in your balances.');
+          toast.error('Selected token not found in your balances.');
           return;
         }
         const erc20Abi = ['function transfer(address to, uint256 amount) public returns (bool)'];
@@ -163,30 +172,46 @@ const SendEth = () => {
         );
         const tx = await tokenContract.transfer(to, tokenAmount, { gasPrice });
         setStatus('Transaction sent! Waiting for confirmation...');
+        toast.message('Token transaction sent! Waiting for confirmation...', {
+          description: `Hash: ${tx.hash}`,
+        });
         await tx.wait();
         setStatus('Transaction confirmed!');
+        toast.success('Token transaction confirmed!');
       }
     } catch (error) {
       console.error('Error details:', error);
       setStatus('Error sending transaction: ' + error.message);
+    
+      if (
+        error.code === 4001 ||
+        error.code === 'ACTION_REJECTED' ||
+        (error.message && error.message.toLowerCase().includes('user rejected'))
+      ) {
+        toast.error('Transaction was rejected by the user.');
+      } else {
+        toast.error('Error sending transaction.', {
+          description: error.message,
+        });
+      }
     }
   };
 
   return (
     <div className="min-h-[50vh] flex flex-col items-center justify-start bg-gray-100">
-      <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-3xl mx-auto mt-12 border-4 border-gradient-to-r from-blue-500 to-purple-500">
-        <h2 className="text-3xl font-bold mb-6 text-gray-800 text-center">
+      <div className="bg-white p-10 rounded-3xl shadow-2xl w-full max-w-2xl mx-auto mt-16 border-0 ring-4 ring-blue-400/40 ring-offset-2 ring-offset-purple-200 transition-all duration-300 hover:scale-[1.02] hover:ring-blue-500/70">
+      <h2 className="text-3xl font-extrabold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 text-center drop-shadow-lg">
           Send {nativeCurrency || 'Native Currency'} or Tokens
         </h2>
 
         {loading ? (
           <p className="text-center text-gray-500">Loading balances...</p>
         ) : selectedToken === 'NATIVE' && nativeBalance ? (
-          <p className="text-center text-gray-700 mb-4">
+          <p className="text-center text-gray-700 mb-4 text-lg font-medium">
             <strong>Balance:</strong> {nativeBalance} {nativeCurrency}
           </p>
         ) : (
-          <p className="text-center text-gray-700 mb-4">
+          <p className="text-center text-gray-700 mb-4 text-lg font-medium">
             <strong>Balance:</strong>{' '}
             {tokenBalances.find((t) => t.symbol === selectedToken)?.balance || '0'}{' '}
             {selectedToken}
@@ -234,7 +259,7 @@ const SendEth = () => {
           </div>
 
           {(!to || !ethers.isAddress(to) || !amount || isNaN(amount) || parseFloat(amount) <= 0) ? (
-            <p className="text-center text-red-500">
+            <p className="text-center text-red-500 font-semibold text-base">
               Please enter a valid address and amount.
             </p>
           ) : (
@@ -273,14 +298,16 @@ const SendEth = () => {
             </div>
           )}
 
-          <button
-            type="submit"
-            className="w-full p-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-md hover:opacity-90 transition-opacity text-lg"
-          >
-            Send
-          </button>
+
+<button
+  type="submit"
+  className="w-full p-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-lg shadow-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-200 text-lg"
+>
+  Send
+</button>
+
         </form>
-        {status && <p className="mt-4 text-gray-700 text-center">{status}</p>}
+        {status && <p className="mt-4 text-gray-700 text-center text-lg font-semibold">{status}</p>}
       </div>
     </div>
   );

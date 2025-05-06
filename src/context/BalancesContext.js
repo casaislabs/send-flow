@@ -4,10 +4,8 @@ import { Alchemy, Network } from 'alchemy-sdk';
 import axios from 'axios';
 import { ethers } from 'ethers';
 
-// Crear el contexto
 export const BalancesContext = createContext();
 
-// Configuración de redes soportadas
 const alchemyNetworks = {
   1: Network.ETH_MAINNET,
   137: Network.MATIC_MAINNET,
@@ -21,7 +19,6 @@ const ankrChains = {
   97: 'bsc_testnet',
 };
 
-// Proveedor del contexto
 export const BalancesProvider = ({ children }) => {
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
@@ -37,12 +34,10 @@ export const BalancesProvider = ({ children }) => {
       try {
         const chainId = await publicClient.getChainId();
 
-        // Obtener balance nativo
         const nativeBalanceInWei = await publicClient.getBalance({ address });
         const nativeBalanceInEth = parseFloat(ethers.formatEther(nativeBalanceInWei));
         setNativeBalance(nativeBalanceInEth.toFixed(6));
 
-        // Obtener balances de tokens
         if (ankrChains[chainId]) {
           const chain = ankrChains[chainId];
           const response = await axios.post('https://rpc.ankr.com/multichain', {
