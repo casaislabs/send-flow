@@ -88,10 +88,16 @@ const TransactionHistoryContainer = () => {
 
   const filteredTransactions = transactions.filter((tx) => {
     if (filter === 'incoming') {
-      return tx.to?.toLowerCase() === address?.toLowerCase();
+      return (
+        tx.to?.toLowerCase() === address?.toLowerCase() &&
+        tx.from?.toLowerCase() !== address?.toLowerCase()
+      );
     }
     if (filter === 'outgoing') {
-      return tx.from?.toLowerCase() === address?.toLowerCase();
+      return (
+        tx.from?.toLowerCase() === address?.toLowerCase() &&
+        tx.to?.toLowerCase() !== address?.toLowerCase()
+      );
     }
     return true;
   });
