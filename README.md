@@ -104,7 +104,7 @@ To test the app on the Sepolia testnet, you’ll need some test ETH (not real fu
 ## ⚙️ How to Run Locally
 
 ```bash
-git clone https://github.com/martinperezcss/send-flow.git
+git clone https://github.com/casaislabs/send-flow.git
 cd send-flow
 yarn install
 yarn start
